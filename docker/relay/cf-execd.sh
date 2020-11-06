@@ -46,8 +46,8 @@ if [ -n "$RUDDER_RELAY_CERTIFICATE" ]; then
   ) > /opt/rudder/etc/ssl/agent.cert
 elif [ ! -f /opt/rudder/etc/ssl/agent.cert ]; then
   mkdir -p /agent_certs/ssl
-  VERIFY_CERT=0
   openssl req -new -sha256 -key /agent_certs/ppkeys/localhost.priv -out /agent_certs/ssl/agent.cert -passin "pass:Cfengine passphrase" -x509 -days 3650 -extensions agent_cert -config /opt/rudder/etc/ssl/openssl-agent.cnf -subj "/UID=${uuid}"
+  VERIFY_CERT=0
 fi
 
 if ((VERIFY_CERT == 1 )); then
