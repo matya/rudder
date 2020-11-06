@@ -5,30 +5,26 @@ set -x
 
 # Needed because standard paths are symlinks
 
-if [ ! -f /node_id/uuid.hive ]; then
-  if [ -n "$RUDDER_RELAY_UUID" ]; then
-    echo "$RUDDER_RELAY_UUID" > /node_id/uuid.hive
-  else
-    /opt/rudder/bin/rudder-uuidgen > /node_id/uuid.hive
-  fi
+if [ -n "$RUDDER_RELAY_UUID" ]; then
+  echo "$RUDDER_RELAY_UUID" > /node_id/uuid.hive
+elif [ ! -f /node_id/uuid.hive ]; then
+  /opt/rudder/bin/rudder-uuidgen > /node_id/uuid.hive
 fi
 
 uuid=$(cat /node_id/uuid.hive)
 
 VERIFY_PUBKEY=1
-if [ ! -f /agent_certs/ppkeys/localhost.priv ]; then
+if [ -n "$RUDDER_RELAY_RSA_KEY" ]; then
+  (
+    echo "-----BEGIN RSA PUBLIC KEY-----"
+    echo "$RUDDER_RELAY_RSA_KEY" | fold -w 64 
+    echo "-----END RSA PUBLIC KEY-----"
+  ) > /agent_certs/ppkeys/localhost.priv
+  chmod 600 /agent_certs/ppkeys/localhost.priv
+elif [ ! -f /agent_certs/ppkeys/localhost.priv ]; then
   mkdir -p /agent_certs/ppkeys
-  if [ -n "$RUDDER_RELAY_RSA_KEY" ]; then
-    (
-      echo "-----BEGIN RSA PUBLIC KEY-----"
-      echo "$RUDDER_RELAY_RSA_KEY" | fold -w 64 
-      echo "-----END RSA PUBLIC KEY-----"
-    ) > /agent_certs/ppkeys/localhost.priv
-    chmod 600 /agent_certs/ppkeys/localhost.priv
-  else
-    /opt/rudder/bin/cf-key -T 4096 -f /agent_certs/ppkeys/localhost
-    VERIFY_PUBKEY=0
-  fi
+  /opt/rudder/bin/cf-key -T 4096 -f /agent_certs/ppkeys/localhost
+  VERIFY_PUBKEY=0
 fi
 
 # Generate public key based on private key so we can verify those two match togehter
@@ -42,19 +38,16 @@ if (( VERIFY_PUBKEY == 1 )); then
 fi
 
 VERIFY_CERT=1
-if [ ! -f /opt/rudder/etc/ssl/agent.cert ]; then
+if [ -n "$RUDDER_RELAY_CERTIFICATE" ]; then
+  (
+    echo "-----BEGIN CERTIFICATE-----"
+    echo "$RUDDER_RELAY_CERTIFICATE" | fold -w 64 
+    echo "-----END CERTIFICATE-----"
+  ) > /opt/rudder/etc/ssl/agent.cert
+elif [ ! -f /opt/rudder/etc/ssl/agent.cert ]; then
   mkdir -p /agent_certs/ssl
-  if [ -n "$RUDDER_RELAY_CERTIFICATE" ]; then
-    (
-      echo "-----BEGIN CERTIFICATE-----"
-      echo "$RUDDER_RELAY_CERTIFICATE" | fold -w 64 
-      echo "-----END CERTIFICATE-----"
-    ) > /opt/rudder/etc/ssl/agent.cert
-
-  else
-    VERIFY_CERT=0
-    openssl req -new -sha256 -key /agent_certs/ppkeys/localhost.priv -out /agent_certs/ssl/agent.cert -passin "pass:Cfengine passphrase" -x509 -days 3650 -extensions agent_cert -config /opt/rudder/etc/ssl/openssl-agent.cnf -subj "/UID=${uuid}"
-  fi
+  VERIFY_CERT=0
+  openssl req -new -sha256 -key /agent_certs/ppkeys/localhost.priv -out /agent_certs/ssl/agent.cert -passin "pass:Cfengine passphrase" -x509 -days 3650 -extensions agent_cert -config /opt/rudder/etc/ssl/openssl-agent.cnf -subj "/UID=${uuid}"
 fi
 
 if ((VERIFY_CERT == 1 )); then
